@@ -22,6 +22,8 @@ type Consumer interface {
 }
 
 func RunBench(ctx context.Context, c Consumer, p Producer, msgSize int, N int) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	if N == 0 {
 		N = 1_000_000
 	}
@@ -41,12 +43,17 @@ func RunBench(ctx context.Context, c Consumer, p Producer, msgSize int, N int) {
 		defer wg.Done()
 		i := 0
 		for msg := range ch {
-			ns, err := strconv.ParseInt(msg.Value[:20], 10, 64)
+			ns, err := strconv.ParseInt(msg.Value[:19], 10, 64)
 			if err != nil {
 				panic(err)
 			}
 			latencies[i] = time.Since(time.Unix(0, ns))
 			i++
+
+			log.Printf("C: %d\n", i)
+			if i == N-1 {
+				return
+			}
 		}
 	}()
 
@@ -64,26 +71,27 @@ func RunBench(ctx context.Context, c Consumer, p Producer, msgSize int, N int) {
 		if err := p.Produce(ctx, "topic", "key-"+strconv.Itoa(i), b.String()); err != nil {
 			log.Printf("failed to produce: %v", err)
 		}
+		log.Printf("P: %d\n", i)
 	}
 
-	close(ch)
 	wg.Wait()
+	cancel()
 
 	elapsed := time.Since(start)
-	fmt.Printf("Message throughput: %d messages/sec", N/int(elapsed.Seconds()))
-	fmt.Printf("Data throughput: %f Mb/sec", (float64(N*msgSize)/elapsed.Seconds())/1024/1024)
+	fmt.Printf("Message throughput: %d messages/sec\n", N/int(elapsed.Seconds()))
+	fmt.Printf("Data throughput: %f Mb/sec\n", (float64(N*msgSize)/elapsed.Seconds())/1024/1024)
 
 	sort.Slice(latencies, func(i, j int) bool {
 		return latencies[i] < latencies[j]
 	})
 
-	fmt.Printf("Min latency: %v", latencies[0])
-	fmt.Printf("P90 latency: %v", latencies[N-N/10])
-	fmt.Printf("P99 latency: %v", latencies[N-N/100])
-	fmt.Printf("Max latency: %v", latencies[N-1])
+	fmt.Printf("Min latency: %v\n", latencies[0])
+	fmt.Printf("P90 latency: %v\n", latencies[N-N/10])
+	fmt.Printf("P99 latency: %v\n", latencies[N-N/100])
+	fmt.Printf("Max latency: %v\n", latencies[N-1])
 }
 
 func main() {
-	k := brokers.NewKafka("localhost:9091", "topic")
-	RunBench(context.Background(), k, k, 1024, 5)
+	k := brokers.NewKafka("localhost:9092", "topic")
+	RunBench(context.Background(), k, k, 512, 100)
 }

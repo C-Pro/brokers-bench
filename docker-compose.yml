@@ -12,14 +12,18 @@ services:
 
   kafka1:
     image: wurstmeister/kafka
+    network_mode: host
     environment:
-    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://192.168.3.153:9091
+    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://192.168.8.66:9091
     - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9091
     - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
     - KAFKA_BROKER_ID=1
+    - KAFKA_CREATE_TOPICS=topic:1:1
     - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
-    - BOOTSTRAP_SERVERS=kafka1:9091,kafka2:9092
+    # - BOOTSTRAP_SERVERS=192.168.8.66:9091,192.168.8.66:9092
     - ZOOKEEPER=zookeeper:2181
+    - KAFKA_BATCH_SIZE=1KB
+    #- KAFKA_LINGER_MS=0
     depends_on:
     - zookeeper
     ports:
@@ -30,17 +34,21 @@ services:
 
   kafka2:
     image: wurstmeister/kafka
+    network_mode: host
     environment:
-    - KAFKA_ADVERTISED_HOST_NAME=PLAINTEXT://192.168.3.153:9092
+    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://192.168.8.66:9092
     - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092
     - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
     - KAFKA_BROKER_ID=2
+    - KAFKA_CREATE_TOPICS=topic:1:1
     - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
-    - BOOTSTRAP_SERVERS=kafka1:9091,kafka2:9092
+    # - BOOTSTRAP_SERVERS=192.168.8.66:9091,192.168.8.66:9092
     - ZOOKEEPER=zookeeper:2181
+    - KAFKA_BATCH_SIZE=1KB
+    #- KAFKA_LINGER_MS=0
     depends_on:
     - zookeeper
     ports:
     - '9092:9092'
     volumes:
-      - "/tmp/kafka1:/kafka"
+      - "/tmp/kafka2:/kafka"
