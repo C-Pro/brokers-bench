@@ -3,49 +3,47 @@ version: '3'
 services:
 
   zookeeper:
-    hostname: zookeeper
     image: wurstmeister/zookeeper:3.4.6
-    expose:
-    - "2181"
     ports:
     - "2181:2181"
 
-  kafka1:
-    image: wurstmeister/kafka
-    network_mode: host
-    environment:
-    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://192.168.8.66:9091
-    - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9091
-    - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
-    - KAFKA_BROKER_ID=1
-    - KAFKA_CREATE_TOPICS=topic:1:1
-    - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
-    # - BOOTSTRAP_SERVERS=192.168.8.66:9091,192.168.8.66:9092
-    - ZOOKEEPER=zookeeper:2181
-    - KAFKA_BATCH_SIZE=1KB
-    #- KAFKA_LINGER_MS=0
-    depends_on:
-    - zookeeper
-    ports:
-    - '9091:9091'
-    volumes:
-      - "/tmp/kafka1:/kafka"
-
+  # kafka1:
+  #   image: wurstmeister/kafka
+  #   #network_mode: host
+  #   environment:
+  #   - KAFKA_ADVERTISED_HOST_NAME=192.168.8.66
+  #   - KAFKA_ADVERTISED_PORT=9091
+  #   - KAFKA_LISTENERS=A://192.168.8.66:9091
+  #   - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=A:PLAINTEXT
+  #   - KAFKA_INTER_BROKER_LISTENER_NAME=A
+  #   - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+  #   - KAFKA_BROKER_ID=1
+  #   - KAFKA_CREATE_TOPICS=topic:1:1
+  #   - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+  #   # - KAFKA_BATCH_SIZE=1KB
+  #   # - KAFKA_LINGER_MS=0
+  #   depends_on:
+  #   - zookeeper
+  #   ports:
+  #   - '9091:9091'
+  #   volumes:
+  #     - "/tmp/kafka1:/kafka"
 
   kafka2:
     image: wurstmeister/kafka
-    network_mode: host
+    #network_mode: host
     environment:
-    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://192.168.8.66:9092
-    - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092
+    - KAFKA_ADVERTISED_HOST_NAME=192.168.8.66
+    # - KAFKA_ADVERTISED_PORT=9092
+    # - KAFKA_LISTENERS=B://kafka2:9092
+    # - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=B:PLAINTEXT
+    # - KAFKA_INTER_BROKER_LISTENER_NAME=B
     - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
     - KAFKA_BROKER_ID=2
     - KAFKA_CREATE_TOPICS=topic:1:1
     - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
-    # - BOOTSTRAP_SERVERS=192.168.8.66:9091,192.168.8.66:9092
-    - ZOOKEEPER=zookeeper:2181
-    - KAFKA_BATCH_SIZE=1KB
-    #- KAFKA_LINGER_MS=0
+    # - KAFKA_BATCH_SIZE=1KB
+    # - KAFKA_LINGER_MS=0
     depends_on:
     - zookeeper
     ports:

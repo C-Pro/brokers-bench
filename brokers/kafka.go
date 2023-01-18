@@ -3,6 +3,7 @@ package brokers
 import (
 	"context"
 	"log"
+	"strings"
 	"time"
 
 	kafka "github.com/segmentio/kafka-go"
@@ -14,24 +15,26 @@ type Kafka struct {
 }
 
 func NewKafka(url, topic string) *Kafka {
+	urls := strings.Split(url, ",")
 	k := Kafka{
 		writer: &kafka.Writer{
-			Addr:                   kafka.TCP(url),
+			Addr:                   kafka.TCP(urls...),
 			Topic:                  topic,
 			AllowAutoTopicCreation: true,
 			// Async:                  true, // NO-NO
-			// BatchSize:              10,
-			// BatchBytes:             1024 * 64,
-			BatchTimeout: time.Millisecond * 100,
+			// BatchSize:    10,
+			// BatchBytes:   1024 * 10,
+			BatchTimeout: time.Millisecond,
+			RequiredAcks: kafka.RequireAll,
+			Balancer: &kafka.RoundRobin{},
 		},
 		reader: kafka.NewReader(kafka.ReaderConfig{
-			Brokers: []string{url},
-			GroupID: "1",
-			Topic:   topic,
-			// MinBytes:    10e3, // 10KB
-			// MaxBytes:    10e6, // 10MB
+			Brokers: urls,
+			// GroupID:       "999",
+			Topic: topic,
+			// QueueCapacity: 1,
 			StartOffset: kafka.LastOffset,
-			MaxWait:     time.Millisecond,
+			// MaxWait:       time.Millisecond,
 		}),
 	}
 
@@ -58,8 +61,11 @@ func (k *Kafka) Consume(ctx context.Context, topic string) (chan Message, error)
 		for {
 			m, err := k.reader.ReadMessage(ctx)
 			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
 				log.Printf("reader returned %v", err)
-				return
+				continue
 			}
 
 			select {

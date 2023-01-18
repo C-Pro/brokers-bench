@@ -2,15 +2,24 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
+	"os/signal"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"syscall"
 	"time"
 
 	"streambench/brokers"
+)
+
+var (
+	txN int64
+	rxN int64
 )
 
 type Producer interface {
@@ -24,9 +33,7 @@ type Consumer interface {
 func RunBench(ctx context.Context, c Consumer, p Producer, msgSize int, N int) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	if N == 0 {
-		N = 1_000_000
-	}
+
 	latencies := make([]time.Duration, N)
 	start := time.Now()
 
@@ -38,20 +45,49 @@ func RunBench(ctx context.Context, c Consumer, p Producer, msgSize int, N int) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 
+	// Print progress
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+
+			rx := atomic.LoadInt64(&rxN)
+			tx := atomic.LoadInt64(&txN)
+
+			mps := 0
+			mbps := 0.0
+			elapsed := time.Since(start)
+			if rx > 0 && elapsed.Seconds() >= 1 {
+				mps = int(float64(rx) / elapsed.Seconds())
+				mbps = float64(rx*int64(msgSize)) / elapsed.Seconds() / 1024 / 1024
+			}
+
+			log.Printf("Produced: %d, Consumed: %d (%d messages/sec, %.2f Mb/sec)", tx, rx, mps, mbps)
+		}
+	}()
+
 	// Consume
 	go func() {
 		defer wg.Done()
-		i := 0
+		start := time.Now().UnixNano()
 		for msg := range ch {
 			ns, err := strconv.ParseInt(msg.Value[:19], 10, 64)
 			if err != nil {
 				panic(err)
 			}
-			latencies[i] = time.Since(time.Unix(0, ns))
-			i++
+			// skip stale messages
+			if ns < start {
+				continue
+			}
+			i := atomic.AddInt64(&rxN, 1)
+			latencies[int(i-1)] = time.Since(time.Unix(0, ns))
 
-			log.Printf("C: %d\n", i)
-			if i == N-1 {
+			if int(i) == N-1 {
 				return
 			}
 		}
@@ -59,7 +95,6 @@ func RunBench(ctx context.Context, c Consumer, p Producer, msgSize int, N int) {
 
 	// Produce
 	for i := 0; i < N; i++ {
-
 		var b strings.Builder
 		b.Grow(msgSize)
 		ts := strconv.FormatInt(time.Now().UnixNano(), 10)
@@ -68,17 +103,25 @@ func RunBench(ctx context.Context, c Consumer, p Producer, msgSize int, N int) {
 			b.WriteByte(42)
 		}
 
-		if err := p.Produce(ctx, "topic", "key-"+strconv.Itoa(i), b.String()); err != nil {
+		if err := p.Produce(ctx, "topic", "", b.String()); err != nil {
 			log.Printf("failed to produce: %v", err)
+			break
 		}
-		log.Printf("P: %d\n", i)
+
+		atomic.AddInt64(&txN, 1)
 	}
 
 	wg.Wait()
 	cancel()
 
 	elapsed := time.Since(start)
-	fmt.Printf("Message throughput: %d messages/sec\n", N/int(elapsed.Seconds()))
+	N = int(atomic.LoadInt64(&rxN))
+	if N == 0 {
+		log.Printf("No messages received in %v", elapsed)
+		return
+	}
+
+	fmt.Printf("Message throughput: %.2f messages/sec\n", float64(N)/elapsed.Seconds())
 	fmt.Printf("Data throughput: %f Mb/sec\n", (float64(N*msgSize)/elapsed.Seconds())/1024/1024)
 
 	sort.Slice(latencies, func(i, j int) bool {
@@ -92,6 +135,44 @@ func RunBench(ctx context.Context, c Consumer, p Producer, msgSize int, N int) {
 }
 
 func main() {
-	k := brokers.NewKafka("localhost:9092", "topic")
-	RunBench(context.Background(), k, k, 512, 100)
+	var (
+		p Producer
+		c Consumer
+
+		url         string
+		topic       string
+		msgSize     int
+		numMessages int
+		broker      string
+	)
+
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	flag.StringVar(&url, "brokers", "127.0.0.1:63677,127.0.0.1:63681,127.0.0.1:63675", "url or list of broker urls comma separated")
+	flag.StringVar(&topic, "topic", "topic", "topic name")
+	flag.IntVar(&msgSize, "msg_size", 128, "message size")
+	flag.IntVar(&numMessages, "num_messages", 1000, "number of messages to send")
+	flag.StringVar(&broker, "broker", "redpanda", "broker to test (kafka, redpanda)")
+	flag.Parse()
+
+	if url == "" {
+		log.Fatal("Provide at least one broker url")
+	}
+
+	switch broker {
+	case "kafka":
+		k := brokers.NewKafka(url, topic)
+		c = k
+		p = k
+	case "redpanda":
+		rp, err := brokers.NewRedPanda(url, topic)
+		if err != nil {
+			log.Fatalf("failed to create RedPanda client: %v", err)
+		}
+		c = rp
+		p = rp
+	}
+
+	RunBench(ctx, c, p, msgSize, numMessages)
 }
