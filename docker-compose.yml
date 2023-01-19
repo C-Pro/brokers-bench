@@ -3,50 +3,36 @@ version: '3'
 services:
 
   zookeeper:
-    image: wurstmeister/zookeeper:3.4.6
+    image: confluentinc/cp-zookeeper:7.2.1
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
     ports:
     - "2181:2181"
 
-  # kafka1:
-  #   image: wurstmeister/kafka
-  #   #network_mode: host
-  #   environment:
-  #   - KAFKA_ADVERTISED_HOST_NAME=192.168.8.66
-  #   - KAFKA_ADVERTISED_PORT=9091
-  #   - KAFKA_LISTENERS=A://192.168.8.66:9091
-  #   - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=A:PLAINTEXT
-  #   - KAFKA_INTER_BROKER_LISTENER_NAME=A
-  #   - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
-  #   - KAFKA_BROKER_ID=1
-  #   - KAFKA_CREATE_TOPICS=topic:1:1
-  #   - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
-  #   # - KAFKA_BATCH_SIZE=1KB
-  #   # - KAFKA_LINGER_MS=0
-  #   depends_on:
-  #   - zookeeper
-  #   ports:
-  #   - '9091:9091'
-  #   volumes:
-  #     - "/tmp/kafka1:/kafka"
+  kafka1:
+    image: confluentinc/cp-kafka:7.2.1
+    environment:
+    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka1:9092,PLAINTEXT_B://192.168.8.66:9093
+    - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_B:PLAINTEXT
+    - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+    - KAFKA_BROKER_ID=1
+    - KAFKA_CREATE_TOPICS=topic:1:1
+    - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+    depends_on:
+    - zookeeper
+    ports:
+    - '9093:9093'
 
   kafka2:
-    image: wurstmeister/kafka
-    #network_mode: host
+    image: confluentinc/cp-kafka:7.2.1
     environment:
-    - KAFKA_ADVERTISED_HOST_NAME=192.168.8.66
-    # - KAFKA_ADVERTISED_PORT=9092
-    # - KAFKA_LISTENERS=B://kafka2:9092
-    # - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=B:PLAINTEXT
-    # - KAFKA_INTER_BROKER_LISTENER_NAME=B
+    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka2:9092,PLAINTEXT_B://192.168.8.66:9094
+    - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_B:PLAINTEXT
     - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
     - KAFKA_BROKER_ID=2
     - KAFKA_CREATE_TOPICS=topic:1:1
     - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
-    # - KAFKA_BATCH_SIZE=1KB
-    # - KAFKA_LINGER_MS=0
     depends_on:
     - zookeeper
     ports:
-    - '9092:9092'
-    volumes:
-      - "/tmp/kafka2:/kafka"
+    - '9094:9094'
