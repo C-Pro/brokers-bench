@@ -149,11 +149,11 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	flag.StringVar(&url, "brokers", "127.0.0.1:63677,127.0.0.1:63681,127.0.0.1:63675", "url or list of broker urls comma separated")
+	flag.StringVar(&url, "brokers", "", "url or list of broker urls comma separated")
 	flag.StringVar(&topic, "topic", "topic", "topic name")
 	flag.IntVar(&msgSize, "msg_size", 128, "message size")
 	flag.IntVar(&numMessages, "num_messages", 1000, "number of messages to send")
-	flag.StringVar(&broker, "broker", "redpanda", "broker to test (kafka, redpanda)")
+	flag.StringVar(&broker, "broker", "redpanda", "broker to test (kafka, redpanda, nats)")
 	flag.Parse()
 
 	if url == "" {
@@ -161,6 +161,13 @@ func main() {
 	}
 
 	switch broker {
+	case "nats":
+		k, err := brokers.NewNats(url, topic)
+		if err != nil {
+			log.Fatalf("failed to create Nats JetStream client: %v", err)
+		}
+		c = k
+		p = k
 	case "kafka":
 		k := brokers.NewKafka(url, topic)
 		c = k
