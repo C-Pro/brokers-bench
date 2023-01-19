@@ -152,8 +152,8 @@ func main() {
 	flag.StringVar(&url, "brokers", "", "url or list of broker urls comma separated")
 	flag.StringVar(&topic, "topic", "topic", "topic name")
 	flag.IntVar(&msgSize, "msg_size", 128, "message size")
-	flag.IntVar(&numMessages, "num_messages", 1000, "number of messages to send")
-	flag.StringVar(&broker, "broker", "redpanda", "broker to test (kafka, redpanda, nats)")
+	flag.IntVar(&numMessages, "num_messages", 10000, "number of messages to send")
+	flag.StringVar(&broker, "broker", "redpanda", "broker to test (kafka, redpanda, nats, pulsar)")
 	flag.Parse()
 
 	if url == "" {
@@ -161,6 +161,13 @@ func main() {
 	}
 
 	switch broker {
+	case "pulsar":
+		k, err := brokers.NewPulsar(url, topic)
+		if err != nil {
+			log.Fatalf("failed to create Pulsar client: %v", err)
+		}
+		c = k
+		p = k
 	case "nats":
 		k, err := brokers.NewNats(url, topic)
 		if err != nil {

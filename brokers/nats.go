@@ -67,9 +67,9 @@ func (n *Nats) Consume(ctx context.Context, topic string) (chan Message, error) 
 			}:
 			}
 
-			if err := m.AckSync(); err != nil {
-				panic(fmt.Sprintf("failed to ack: %v", err))
-			}
+			// if err := m.AckSync(); err != nil {
+			// 	panic(fmt.Sprintf("failed to ack: %v", err))
+			// }
 		}
 	}()
 
