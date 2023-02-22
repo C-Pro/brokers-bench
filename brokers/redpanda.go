@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/twmb/franz-go/pkg/kgo"
 )
@@ -21,7 +22,7 @@ func NewRedPanda(url, topic string) (*RedPanda, error) {
 		kgo.DefaultProduceTopic(topic),
 		kgo.ConsumeTopics(topic),
 		// kgo.MaxConcurrentFetches(1),
-		kgo.ProducerBatchMaxBytes(1024 * 1024),
+		// kgo.ProducerBatchMaxBytes(1024 * 1024),
 		// kgo.RequiredAcks(kgo.AllISRAcks()),
 		kgo.DisableIdempotentWrite(),
 		// kgo.RequiredAcks(kgo.LeaderAck()),
@@ -51,12 +52,16 @@ func (rp *RedPanda) Produce(ctx context.Context, topic, key, value string) error
 
 func (rp *RedPanda) Consume(ctx context.Context, topic string) (chan Message, error) {
 	ch := make(chan Message)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
 		<-ctx.Done()
+		wg.Wait()
 		close(ch)
 	}()
 
 	go func() {
+		defer wg.Done()
 		for {
 			fetches := rp.cl.PollFetches(ctx)
 			fetches.EachError(func(t string, p int32, err error) {

@@ -30,7 +30,7 @@ type Consumer interface {
 	Consume(ctx context.Context, topic string) (chan brokers.Message, error)
 }
 
-func runTopic(ctx context.Context, c Consumer, p Producer, msgSize int, N int, topic string) []time.Duration {
+func runTopic(ctx context.Context, c Consumer, p Producer, msgSize int, N, M, rate int, topic string) []time.Duration {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	latencies := make([]time.Duration, N)
@@ -59,17 +59,33 @@ func runTopic(ctx context.Context, c Consumer, p Producer, msgSize int, N int, t
 			}
 
 			atomic.AddInt64(&rxN, 1)
-			latencies[i] = time.Since(time.Unix(0, ns))
+			latencies = append(latencies, time.Since(time.Unix(0, ns)))
 			i++
 
-			if i == N {
+			// Stop if number of messages is reached.
+			if N > 0 && i == N {
+				return
+			}
+
+			// Stop if number of minutes is reached.
+			if M > 0 && (time.Now().UnixNano()-start)/int64(time.Minute) == int64(M) {
 				return
 			}
 		}
 	}()
 
-	// Produce
-	for i := 0; i < N; i++ {
+	// Produce.
+	i := 0
+	lastProduced := time.Time{}
+	for {
+		// Limit produce rate.
+		if !lastProduced.IsZero() {
+			diff := time.Until(lastProduced.Add(time.Second / time.Duration(rate)))
+			if diff > 0 {
+				time.Sleep(diff)
+			}
+		}
+
 		var b strings.Builder
 		b.Grow(msgSize)
 		ts := strconv.FormatInt(time.Now().UnixNano(), 10)
@@ -84,6 +100,17 @@ func runTopic(ctx context.Context, c Consumer, p Producer, msgSize int, N int, t
 		}
 
 		atomic.AddInt64(&txN, 1)
+		lastProduced = time.Now()
+		i++
+
+		// Stop if number of messages is reached.
+		if N > 0 && i == N {
+			break
+		}
+		// Stop if number of minutes is reached.
+		if M > 0 && (time.Now().UnixNano()-start)/int64(time.Minute) == int64(M) {
+			break
+		}
 	}
 
 	wg.Wait()
@@ -91,7 +118,7 @@ func runTopic(ctx context.Context, c Consumer, p Producer, msgSize int, N int, t
 	return latencies
 }
 
-func RunBench(ctx context.Context, msgSize int, N int, brokerType, brokerURLs, topics string) {
+func RunBench(ctx context.Context, msgSize int, N, M, rate int, brokerType, brokerURLs, topics string) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -99,7 +126,7 @@ func RunBench(ctx context.Context, msgSize int, N int, brokerType, brokerURLs, t
 	start := time.Now()
 
 	wg := sync.WaitGroup{}
-	ch := make(chan []time.Duration)
+	ch := make(chan []time.Duration, 10)
 
 	for _, topic := range strings.Split(topics, ",") {
 		wg.Add(1)
@@ -136,7 +163,7 @@ func RunBench(ctx context.Context, msgSize int, N int, brokerType, brokerURLs, t
 		}
 		go func(topic string, p Producer, c Consumer) {
 			defer wg.Done()
-			ch <- runTopic(ctx, c, p, msgSize, N, topic)
+			ch <- runTopic(ctx, c, p, msgSize, N, M, rate, topic)
 		}(topic, p, c)
 	}
 
@@ -146,7 +173,9 @@ func RunBench(ctx context.Context, msgSize int, N int, brokerType, brokerURLs, t
 	go func() {
 		defer wgl.Done()
 		for ls := range ch {
-			latencies = append(latencies, ls...)
+			// Trim first 10% of latencies slice
+			// to account for broker "warm up" time.
+			latencies = append(latencies, ls[len(ls)/10:]...)
 		}
 	}()
 
@@ -195,10 +224,17 @@ func RunBench(ctx context.Context, msgSize int, N int, brokerType, brokerURLs, t
 		return latencies[i] < latencies[j]
 	})
 
-	fmt.Printf("Min latency: %v\n", latencies[0])
-	fmt.Printf("P90 latency: %v\n", latencies[N-N/10])
-	fmt.Printf("P99 latency: %v\n", latencies[N-N/100])
-	fmt.Printf("P99.9 latency: %v\n", latencies[N-N/1000])
+	N = len(latencies) // This one is smaller than rxN because we trim first 10% of warmup time.
+	fmt.Printf("Min latency: %v\n", ms(latencies[0]))
+	fmt.Printf("P90 latency: %v\n", ms(latencies[N-N/10]))
+	fmt.Printf("P99 latency: %v\n", ms(latencies[N-N/100]))
+	fmt.Printf("P99.9 latency: %v\n", ms(latencies[N-N/1000]))
+	fmt.Printf("Max latency: %v\n", ms(latencies[N-1]))
+	fmt.Printf("Total elapsed time: %v\n", time.Since(start))
+}
+
+func ms(d time.Duration) string {
+	return fmt.Sprintf("%d ms.", d.Milliseconds())
 }
 
 func main() {
@@ -207,7 +243,9 @@ func main() {
 		topics      string
 		msgSize     int
 		numMessages int
+		minutes     int
 		broker      string
+		rate        int
 	)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -216,13 +254,19 @@ func main() {
 	flag.StringVar(&url, "brokers", "", "url or list of broker urls comma separated")
 	flag.StringVar(&topics, "topics", "topic", "comma separated list of topic names")
 	flag.IntVar(&msgSize, "msg_size", 128, "message size")
-	flag.IntVar(&numMessages, "num_messages", 10000, "number of messages to send per topic")
+	flag.IntVar(&numMessages, "num_messages", 0, "number of messages to send per topic")
+	flag.IntVar(&minutes, "minutes", 0, "number of minutes to run the benchmark")
 	flag.StringVar(&broker, "broker", "redpanda", "broker to test (kafka, redpanda, nats, pulsar)")
+	flag.IntVar(&rate, "producer_rate", 1000, "number of messages per second to produce per topic")
 	flag.Parse()
 
 	if url == "" {
 		log.Fatal("Provide at least one broker url")
 	}
 
-	RunBench(ctx, msgSize, numMessages, broker, url, topics)
+	if (minutes != 0 && numMessages != 0) || (minutes == 0 && numMessages == 0) {
+		log.Fatal("Provide either -minutes or -num_messages, but not both.")
+	}
+
+	RunBench(ctx, msgSize, numMessages, minutes, rate, broker, url, topics)
 }

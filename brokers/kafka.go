@@ -25,8 +25,8 @@ func NewKafka(url, topic string) *Kafka {
 			// BatchSize:    10,
 			// BatchBytes:   1024 * 10,
 			BatchTimeout: time.Millisecond,
-			RequiredAcks: kafka.RequireOne,
-			Balancer: &kafka.RoundRobin{},
+			RequiredAcks: kafka.RequireNone,
+			Balancer:     &kafka.RoundRobin{},
 		},
 		reader: kafka.NewReader(kafka.ReaderConfig{
 			Brokers: urls,
