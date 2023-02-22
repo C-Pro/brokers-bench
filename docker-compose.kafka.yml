@@ -12,12 +12,10 @@ services:
   kafka1:
     image: confluentinc/cp-kafka:7.2.1
     environment:
-    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka1:9092,PLAINTEXT_B://192.168.8.66:9093
+    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka1:9092,PLAINTEXT_B://192.168.3.148:9093
     - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_B:PLAINTEXT
     - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
     - KAFKA_BROKER_ID=1
-    - KAFKA_CREATE_TOPICS=topic:1:1
-    - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
     depends_on:
     - zookeeper
     ports:
@@ -26,13 +24,51 @@ services:
   kafka2:
     image: confluentinc/cp-kafka:7.2.1
     environment:
-    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka2:9092,PLAINTEXT_B://192.168.8.66:9094
+    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka2:9092,PLAINTEXT_B://192.168.3.148:9094
     - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_B:PLAINTEXT
     - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
     - KAFKA_BROKER_ID=2
-    - KAFKA_CREATE_TOPICS=topic:1:1
-    - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
     depends_on:
     - zookeeper
     ports:
     - '9094:9094'
+
+  kafka3:
+    image: confluentinc/cp-kafka:7.2.1
+    environment:
+    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka3:9092,PLAINTEXT_B://192.168.3.148:9095
+    - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_B:PLAINTEXT
+    - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+    - KAFKA_BROKER_ID=3
+    depends_on:
+    - zookeeper
+    ports:
+    - '9095:9095'
+
+  init-kafka:
+    image: confluentinc/cp-kafka:7.2.1
+    depends_on:
+      - kafka1
+      - kafka2
+      - kafka3
+    entrypoint: [ '/bin/sh', '-c' ]
+    command: |
+      "
+      # blocks until kafka is reachable
+      kafka-topics --bootstrap-server kafka1:9092 --list
+
+      echo -e 'Creating kafka topics'
+      kafka-topics --bootstrap-server kafka1:9092 --create --if-not-exists --topic topic_1 --replication-factor 3 --partitions 1
+      kafka-topics --bootstrap-server kafka1:9092 --create --if-not-exists --topic topic_2 --replication-factor 3 --partitions 1
+      kafka-topics --bootstrap-server kafka1:9092 --create --if-not-exists --topic topic_3 --replication-factor 3 --partitions 1
+      kafka-topics --bootstrap-server kafka1:9092 --create --if-not-exists --topic topic_4 --replication-factor 3 --partitions 1
+      kafka-topics --bootstrap-server kafka1:9092 --create --if-not-exists --topic topic_5 --replication-factor 3 --partitions 1
+      kafka-topics --bootstrap-server kafka1:9092 --create --if-not-exists --topic topic_6 --replication-factor 3 --partitions 1
+      kafka-topics --bootstrap-server kafka1:9092 --create --if-not-exists --topic topic_7 --replication-factor 3 --partitions 1
+      kafka-topics --bootstrap-server kafka1:9092 --create --if-not-exists --topic topic_8 --replication-factor 3 --partitions 1
+      kafka-topics --bootstrap-server kafka1:9092 --create --if-not-exists --topic topic_9 --replication-factor 3 --partitions 1
+      kafka-topics --bootstrap-server kafka1:9092 --create --if-not-exists --topic topic_10 --replication-factor 3 --partitions 1
+
+      echo -e 'Successfully created the following topics:'
+      kafka-topics --bootstrap-server kafka1:9092 --list
+      "

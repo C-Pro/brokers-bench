@@ -30,14 +30,13 @@ type Consumer interface {
 	Consume(ctx context.Context, topic string) (chan brokers.Message, error)
 }
 
-func RunBench(ctx context.Context, c Consumer, p Producer, msgSize int, N int) {
+func runTopic(ctx context.Context, c Consumer, p Producer, msgSize int, N int, topic string) []time.Duration {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
 	latencies := make([]time.Duration, N)
-	start := time.Now()
+	start := time.Now().UnixNano()
 
-	ch, err := c.Consume(ctx, "topic")
+	ch, err := c.Consume(ctx, topic)
 	if err != nil {
 		panic(err)
 	}
@@ -45,7 +44,113 @@ func RunBench(ctx context.Context, c Consumer, p Producer, msgSize int, N int) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 
-	// Print progress
+	// Consume
+	go func() {
+		defer wg.Done()
+		i := 0
+		for msg := range ch {
+			ns, err := strconv.ParseInt(msg.Value[:19], 10, 64)
+			if err != nil {
+				panic(err)
+			}
+			// skip stale messages
+			if ns < start {
+				continue
+			}
+
+			atomic.AddInt64(&rxN, 1)
+			latencies[i] = time.Since(time.Unix(0, ns))
+			i++
+
+			if i == N {
+				return
+			}
+		}
+	}()
+
+	// Produce
+	for i := 0; i < N; i++ {
+		var b strings.Builder
+		b.Grow(msgSize)
+		ts := strconv.FormatInt(time.Now().UnixNano(), 10)
+		b.WriteString(ts)
+		for n := 0; n < msgSize-len(ts); n++ {
+			b.WriteByte(42)
+		}
+
+		if err := p.Produce(ctx, topic, "", b.String()); err != nil {
+			log.Printf("failed to produce: %v", err)
+			break
+		}
+
+		atomic.AddInt64(&txN, 1)
+	}
+
+	wg.Wait()
+
+	return latencies
+}
+
+func RunBench(ctx context.Context, msgSize int, N int, brokerType, brokerURLs, topics string) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	latencies := make([]time.Duration, 0, N*len(strings.Split(topics, ",")))
+	start := time.Now()
+
+	wg := sync.WaitGroup{}
+	ch := make(chan []time.Duration)
+
+	for _, topic := range strings.Split(topics, ",") {
+		wg.Add(1)
+		var (
+			p Producer
+			c Consumer
+		)
+		switch brokerType {
+		case "pulsar":
+			k, err := brokers.NewPulsar(brokerURLs, topic)
+			if err != nil {
+				log.Fatalf("failed to create Pulsar client: %v", err)
+			}
+			c = k
+			p = k
+		case "nats":
+			k, err := brokers.NewNats(brokerURLs, topic)
+			if err != nil {
+				log.Fatalf("failed to create Nats JetStream client: %v", err)
+			}
+			c = k
+			p = k
+		case "kafka":
+			k := brokers.NewKafka(brokerURLs, topic)
+			c = k
+			p = k
+		case "redpanda":
+			rp, err := brokers.NewRedPanda(brokerURLs, topic)
+			if err != nil {
+				log.Fatalf("failed to create RedPanda client: %v", err)
+			}
+			c = rp
+			p = rp
+		}
+		go func(topic string, p Producer, c Consumer) {
+			defer wg.Done()
+			ch <- runTopic(ctx, c, p, msgSize, N, topic)
+		}(topic, p, c)
+	}
+
+	// Append latencies.
+	wgl := sync.WaitGroup{}
+	wgl.Add(1)
+	go func() {
+		defer wgl.Done()
+		for ls := range ch {
+			latencies = append(latencies, ls...)
+		}
+	}()
+
+	// Print progress.
 	go func() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
@@ -71,48 +176,10 @@ func RunBench(ctx context.Context, c Consumer, p Producer, msgSize int, N int) {
 		}
 	}()
 
-	// Consume
-	go func() {
-		defer wg.Done()
-		start := time.Now().UnixNano()
-		for msg := range ch {
-			ns, err := strconv.ParseInt(msg.Value[:19], 10, 64)
-			if err != nil {
-				panic(err)
-			}
-			// skip stale messages
-			if ns < start {
-				continue
-			}
-			i := atomic.AddInt64(&rxN, 1)
-			latencies[int(i-1)] = time.Since(time.Unix(0, ns))
-
-			if int(i) == N-1 {
-				return
-			}
-		}
-	}()
-
-	// Produce
-	for i := 0; i < N; i++ {
-		var b strings.Builder
-		b.Grow(msgSize)
-		ts := strconv.FormatInt(time.Now().UnixNano(), 10)
-		b.WriteString(ts)
-		for n := 0; n < msgSize-len(ts); n++ {
-			b.WriteByte(42)
-		}
-
-		if err := p.Produce(ctx, "topic", "", b.String()); err != nil {
-			log.Printf("failed to produce: %v", err)
-			break
-		}
-
-		atomic.AddInt64(&txN, 1)
-	}
-
 	wg.Wait()
 	cancel()
+	close(ch)
+	wgl.Wait()
 
 	elapsed := time.Since(start)
 	N = int(atomic.LoadInt64(&rxN))
@@ -131,16 +198,13 @@ func RunBench(ctx context.Context, c Consumer, p Producer, msgSize int, N int) {
 	fmt.Printf("Min latency: %v\n", latencies[0])
 	fmt.Printf("P90 latency: %v\n", latencies[N-N/10])
 	fmt.Printf("P99 latency: %v\n", latencies[N-N/100])
-	fmt.Printf("Max latency: %v\n", latencies[N-1])
+	fmt.Printf("P99.9 latency: %v\n", latencies[N-N/1000])
 }
 
 func main() {
 	var (
-		p Producer
-		c Consumer
-
 		url         string
-		topic       string
+		topics      string
 		msgSize     int
 		numMessages int
 		broker      string
@@ -150,9 +214,9 @@ func main() {
 	defer cancel()
 
 	flag.StringVar(&url, "brokers", "", "url or list of broker urls comma separated")
-	flag.StringVar(&topic, "topic", "topic", "topic name")
+	flag.StringVar(&topics, "topics", "topic", "comma separated list of topic names")
 	flag.IntVar(&msgSize, "msg_size", 128, "message size")
-	flag.IntVar(&numMessages, "num_messages", 10000, "number of messages to send")
+	flag.IntVar(&numMessages, "num_messages", 10000, "number of messages to send per topic")
 	flag.StringVar(&broker, "broker", "redpanda", "broker to test (kafka, redpanda, nats, pulsar)")
 	flag.Parse()
 
@@ -160,33 +224,5 @@ func main() {
 		log.Fatal("Provide at least one broker url")
 	}
 
-	switch broker {
-	case "pulsar":
-		k, err := brokers.NewPulsar(url, topic)
-		if err != nil {
-			log.Fatalf("failed to create Pulsar client: %v", err)
-		}
-		c = k
-		p = k
-	case "nats":
-		k, err := brokers.NewNats(url, topic)
-		if err != nil {
-			log.Fatalf("failed to create Nats JetStream client: %v", err)
-		}
-		c = k
-		p = k
-	case "kafka":
-		k := brokers.NewKafka(url, topic)
-		c = k
-		p = k
-	case "redpanda":
-		rp, err := brokers.NewRedPanda(url, topic)
-		if err != nil {
-			log.Fatalf("failed to create RedPanda client: %v", err)
-		}
-		c = rp
-		p = rp
-	}
-
-	RunBench(ctx, c, p, msgSize, numMessages)
+	RunBench(ctx, msgSize, numMessages, broker, url, topics)
 }

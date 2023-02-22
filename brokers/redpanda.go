@@ -20,9 +20,12 @@ func NewRedPanda(url, topic string) (*RedPanda, error) {
 		kgo.SeedBrokers(strings.Split(url, ",")...),
 		kgo.DefaultProduceTopic(topic),
 		kgo.ConsumeTopics(topic),
-		kgo.MaxConcurrentFetches(1),
+		// kgo.MaxConcurrentFetches(1),
 		kgo.ProducerBatchMaxBytes(1024 * 1024),
-		kgo.RequiredAcks(kgo.AllISRAcks()),
+		// kgo.RequiredAcks(kgo.AllISRAcks()),
+		kgo.DisableIdempotentWrite(),
+		// kgo.RequiredAcks(kgo.LeaderAck()),
+		kgo.RequiredAcks(kgo.NoAck()),
 		kgo.WithLogger(kgo.BasicLogger(os.Stderr, kgo.LogLevelWarn, nil)),
 	}
 
