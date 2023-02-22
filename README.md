@@ -111,7 +111,7 @@ P99 latency: 10.98988s
 P99.9 latency: 11.505453s
 ```
 
-Obviously Kafka struggled under load, while Redpanda performed quite good. I believe Kafka performance might be improved by tuning JVM garbage collector, but I do not have a desire to research on how to do it. To be fair I did not tune any of the brokers in the test at all.
+Obviously both Kafka and Redpanda struggled under load, but Redpanda througput was about 5 times better.
 
 And the last benchmark with waiting for only one acknowledge (from leader broker for the respective partition).
 
