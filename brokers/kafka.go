@@ -2,6 +2,7 @@ package brokers
 
 import (
 	"context"
+	"errors"
 	"log"
 	"strings"
 	"time"
@@ -19,23 +20,20 @@ func NewKafka(url, topic string) *Kafka {
 	k := Kafka{
 		writer: &kafka.Writer{
 			Addr:                   kafka.TCP(urls...),
-			Topic:                  topic,
 			AllowAutoTopicCreation: true,
-			// Async:                  true, // NO-NO
-			// BatchSize:    10,
-			// BatchBytes:   1024 * 10,
-			BatchTimeout: time.Millisecond,
-			RequiredAcks: kafka.RequireNone,
-			Balancer:     &kafka.RoundRobin{},
+			BatchTimeout:           time.Millisecond,
+			RequiredAcks:           kafka.RequireNone,
+			Balancer:               &kafka.RoundRobin{},
 		},
-		reader: kafka.NewReader(kafka.ReaderConfig{
-			Brokers: urls,
-			// GroupID:       "999",
-			Topic: topic,
-			// QueueCapacity: 1,
+	}
+
+	if topic != "" {
+		k.reader = kafka.NewReader(kafka.ReaderConfig{
+			Brokers:     urls,
+			Topic:       topic,
 			StartOffset: kafka.LastOffset,
-			// MaxWait:       time.Millisecond,
-		}),
+			MaxWait:     time.Millisecond,
+		})
 	}
 
 	return &k
@@ -51,6 +49,9 @@ func (k *Kafka) Produce(ctx context.Context, topic, key, value string) error {
 }
 
 func (k *Kafka) Consume(ctx context.Context, topic string) (chan Message, error) {
+	if k.reader == nil {
+		return nil, errors.New("not created as a consumer (no topic provided)")
+	}
 	ch := make(chan Message)
 	go func() {
 		<-ctx.Done()

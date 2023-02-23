@@ -134,3 +134,218 @@ P90 latency: 13.113ms
 P99 latency: 18.431ms
 P99.9 latency: 24.214ms
 ```
+
+## Compression effect
+
+Several benchmarks to measure message compression effect on message throughput and latency.
+Setup is:
+* Three brokers running in Docker on MacOS m2 CPU (VM with 2 CPU cores and 24Gb RAM).
+* Ten topics with one partition each.
+* Replication factor is 3.
+* One producer and one consumer per topic.
+* Redpanda (franz-go) driver.
+* Producers are waiting for ack from a partiton leader (for Redpanda it means fsync of message on the leader).
+
+### 1kb message size.
+
+No compression. Leader ack. Redpanda.
+
+```
+Data throughput: 4.289471 Mb/sec
+Min latency: 0 ms.
+P90 latency: 12 ms.
+P99 latency: 16 ms.
+P99.9 latency: 20 ms.
+Max latency: 32 ms.
+Total elapsed time: 1m0.045717625s
+```
+
+Gzip compression. Leader ack. Redpanda.
+
+```
+Message throughput: 4408.45 messages/sec
+Data throughput: 4.305127 Mb/sec
+Min latency: 0 ms.
+P90 latency: 12 ms.
+P99 latency: 16 ms.
+P99.9 latency: 19 ms.
+Max latency: 27 ms.
+Total elapsed time: 1m0.061644166s
+```
+
+Snappy compression. Leader ack. Redpanda.
+
+```
+Message throughput: 4482.91 messages/sec
+Data throughput: 4.377841 Mb/sec
+Min latency: 0 ms.
+P90 latency: 12 ms.
+P99 latency: 16 ms.
+P99.9 latency: 20 ms.
+Max latency: 30 ms.
+Total elapsed time: 1m0.048094875s
+```
+
+## 10 Kb message size
+
+No compression. Leader ack. Redpanda.
+
+```
+Message throughput: 4122.12 messages/sec
+Data throughput: 40.255121 Mb/sec
+Min latency: 0 ms.
+P90 latency: 11 ms.
+P99 latency: 15 ms.
+P99.9 latency: 19 ms.
+Max latency: 30 ms.
+Total elapsed time: 1m0.041290917s
+```
+
+Gzip compression. Leader ack. Redpanda.
+
+```
+Message throughput: 4196.52 messages/sec
+Data throughput: 40.981668 Mb/sec
+Min latency: 0 ms.
+P90 latency: 11 ms.
+P99 latency: 16 ms.
+P99.9 latency: 20 ms.
+Max latency: 47 ms.
+Total elapsed time: 1m0.050047s
+```
+
+Snappy compression. Leader ack. Redpanda.
+
+```
+Message throughput: 4372.22 messages/sec
+Data throughput: 42.697422 Mb/sec
+Min latency: 0 ms.
+P90 latency: 12 ms.
+P99 latency: 15 ms.
+P99.9 latency: 19 ms.
+Max latency: 30 ms.
+Total elapsed time: 1m0.038668375s
+```
+
+## Multiple producers
+
+Benchmarking several producers writing into one topic.
+Setup is:
+* Three brokers running in Docker on MacOS m2 CPU (VM with 2 CPU cores and 24Gb RAM).
+* Ten topics with one partition each (except in last test, where I partitioned all topics).
+* Replication factor is 3.
+* One producer and one consumer per topic.
+* Redpanda (franz-go) driver.
+* Producers are waiting for ack from a partiton leader (for Redpanda it means fsync of message on the leader).
+
+For for Kafka benchmark is running for 5 minutes so JVM will have enough time to "warm up".
+Redpanda benchmarks are running for 1 minute, because there's no significant deviation in performance during the run.
+For all benchmarks first 10% of latency readings are discarded before computing percentiles.
+
+Single topic. Redpanda.
+
+```
+Message throughput: 5343.15 messages/sec
+Data throughput: 5.217921 Mb/sec
+Min latency: 0 ms.
+P90 latency: 10 ms.
+P99 latency: 13 ms.
+P99.9 latency: 16 ms.
+Max latency: 22 ms.
+Total elapsed time: 1m0.0275945s
+```
+
+Single topic. Kafka.
+
+```
+Message throughput: 4372.17 messages/sec
+Data throughput: 4.269692 Mb/sec
+Min latency: 0 ms.
+P90 latency: 6 ms.
+P99 latency: 11 ms.
+P99.9 latency: 20 ms.
+Max latency: 38 ms.
+Total elapsed time: 5m0.097158125s
+Commandline arguments: -driver redpanda -brokers=192.168.3.148:9093,192.168.3.148:9094,192.168.3.148:9095 -topics=topic_1 -msg_size=1024 -minutes=5 -producers_per_topic=10
+```
+
+Four topics (40 producers and 4 consumers). Redpanda.
+
+```
+Message throughput: 9933.75 messages/sec
+Data throughput: 9.700924 Mb/sec
+Min latency: 0 ms.
+P90 latency: 15 ms.
+P99 latency: 23 ms.
+P99.9 latency: 29 ms.
+Max latency: 46 ms.
+Total elapsed time: 1m0.073410667s
+```
+
+Four topics (40 producers and 4 consumers). Kafka.
+
+```
+Message throughput: 7147.80 messages/sec
+Data throughput: 6.980273 Mb/sec
+Min latency: 0 ms.
+P90 latency: 56 ms.
+P99 latency: 108 ms.
+P99.9 latency: 160 ms.
+Max latency: 241 ms.
+Total elapsed time: 5m0.25113875s
+Commandline arguments: -driver redpanda -brokers=192.168.3.148:9093,192.168.3.148:9094,192.168.3.148:9095 -topics=topic_1,topic_2,topic_3,topic_4 -msg_size=1024 -minutes=5 -producers_per_topic=10
+```
+
+Ten topics (100 producers and 10 consumers). Redpanda.
+
+```
+Message throughput: 11525.34 messages/sec
+Data throughput: 11.255215 Mb/sec
+Min latency: 0 ms.
+P90 latency: 37 ms.
+P99 latency: 55 ms.
+P99.9 latency: 71 ms.
+Max latency: 101 ms.
+Total elapsed time: 1m0.089733583s
+```
+
+Ten topics (100 producers and 10 consumers). Kafka.
+
+```
+Message throughput: 8487.30 messages/sec
+Data throughput: 8.288379 Mb/sec
+Min latency: 1 ms.
+P90 latency: 120 ms.
+P99 latency: 216 ms.
+P99.9 latency: 319 ms.
+Max latency: 506 ms.
+Total elapsed time: 5m0.365870125s
+Commandline arguments: -driver redpanda -brokers=192.168.3.148:9093,192.168.3.148:9094,192.168.3.148:9095 -topics=topic_1,topic_2,topic_3,topic_4,topic_5,topic_6,topic_7,topic_8,topic_9,topic_10 -msg_size=1024 -minutes=5 -producers_per_topic=10
+```
+
+Ten topics with 10 partitions each (100 producers and 10 consumers). Redpanda.
+
+```
+Message throughput: 11882.75 messages/sec
+Data throughput: 11.604249 Mb/sec
+Min latency: 1 ms.
+P90 latency: 73 ms.
+P99 latency: 116 ms.
+P99.9 latency: 141 ms.
+Max latency: 179 ms.
+Total elapsed time: 1m0.098068875s
+```
+
+Ten topics with 10 partitions each (100 producers and 10 consumers). Kafka.
+
+```
+Message throughput: 7161.17 messages/sec
+Data throughput: 6.993326 Mb/sec
+Min latency: 2 ms.
+P90 latency: 145 ms.
+P99 latency: 248 ms.
+P99.9 latency: 343 ms.
+Max latency: 742 ms.
+Total elapsed time: 5m0.349696209s
+Commandline arguments: -driver redpanda -brokers=192.168.3.148:9093,192.168.3.148:9094,192.168.3.148:9095 -topics=topic_1,topic_2,topic_3,topic_4,topic_5,topic_6,topic_7,topic_8,topic_9,topic_10 -msg_size=1024 -minutes=5 -producers_per_topic=10
+```

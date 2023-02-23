@@ -19,15 +19,15 @@ func NewRedPanda(url, topic string) (*RedPanda, error) {
 	rp := &RedPanda{}
 	opts := []kgo.Opt{
 		kgo.SeedBrokers(strings.Split(url, ",")...),
-		kgo.DefaultProduceTopic(topic),
-		kgo.ConsumeTopics(topic),
-		// kgo.MaxConcurrentFetches(1),
-		// kgo.ProducerBatchMaxBytes(1024 * 1024),
-		// kgo.RequiredAcks(kgo.AllISRAcks()),
 		kgo.DisableIdempotentWrite(),
-		// kgo.RequiredAcks(kgo.LeaderAck()),
-		kgo.RequiredAcks(kgo.NoAck()),
+		kgo.ProducerBatchCompression(kgo.SnappyCompression()),
+		kgo.RequiredAcks(kgo.LeaderAck()),
 		kgo.WithLogger(kgo.BasicLogger(os.Stderr, kgo.LogLevelWarn, nil)),
+		kgo.ConsumeResetOffset(kgo.NewOffset().AtEnd()),
+	}
+
+	if topic != "" {
+		opts = append(opts, kgo.ConsumeTopics(strings.Split(topic, ",")...))
 	}
 
 	cl, err := kgo.NewClient(opts...)
@@ -41,6 +41,7 @@ func NewRedPanda(url, topic string) (*RedPanda, error) {
 
 func (rp *RedPanda) Produce(ctx context.Context, topic, key, value string) error {
 	msg := kgo.Record{
+		Topic: topic,
 		Key:   []byte(key),
 		Value: []byte(value),
 	}

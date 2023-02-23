@@ -19,9 +19,15 @@ func NewPulsar(url, topic string) (*Pulsar, error) {
 		return nil, err
 	}
 
-	p, err := cl.CreateProducer(pulsar.ProducerOptions{
-		Topic: topic,
-	})
+	var p pulsar.Producer
+	if topic != "" {
+		p, err = cl.CreateProducer(pulsar.ProducerOptions{
+			Topic: topic,
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	return &Pulsar{cl: cl, p: p}, nil
 }
