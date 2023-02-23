@@ -393,6 +393,7 @@ P99 latency: 19 ms.
 P99.9 latency: 35 ms.
 Max latency: 60 ms.
 Total elapsed time: 1m0.1442035s
+Commandline arguments: -driver redpanda -brokers=127.0.0.1:53022,127.0.0.1:53027,127.0.0.1:53026 -topics=topic_1,topic_2,topic_3,topic_4,topic_5,topic_6,topic_7,topic_8,topic_9,topic_10 -msg_size=1024 -minutes=1 -producers_per_topic=10
 ```
 
 
