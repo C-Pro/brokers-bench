@@ -363,3 +363,49 @@ Max latency: 124 ms.
 Total elapsed time: 1m0.065176292s
 Commandline arguments: -driver nats -brokers 127.0.0.1:4222,127.0.0.1:4223,127.0.0.1:4224 -topics=s0,s1,s2,s3,s4,s5,s6,s7,s8,s9 -msg_size=1024 -minutes=1 -producers_per_topic=10
 ```
+
+## Vertical scaling
+
+In the next test I added 8 CPU cores to the previous setup (total 10 cores). Everything else is unchanged.
+
+Kafka
+
+```
+Message throughput: 21539.27 messages/sec
+Data throughput: 21.034442 Mb/sec
+Min latency: 1 ms.
+P90 latency: 11 ms.
+P99 latency: 20 ms.
+P99.9 latency: 36 ms.
+Max latency: 127 ms.
+Total elapsed time: 5m0.627718333s
+Commandline arguments: -driver redpanda -brokers=192.168.3.148:9093,192.168.3.148:9094,192.168.3.148:9095 -topics=topic_1,topic_2,topic_3,topic_4,topic_5,topic_6,topic_7,topic_8,topic_9,topic_10 -msg_size=1024 -minutes=5 -producers_per_topic=10
+```
+
+Redpanda
+
+```
+Message throughput: 20974.61 messages/sec
+Data throughput: 20.483016 Mb/sec
+Min latency: 0 ms.
+P90 latency: 13 ms.
+P99 latency: 19 ms.
+P99.9 latency: 35 ms.
+Max latency: 60 ms.
+Total elapsed time: 1m0.1442035s
+```
+
+
+Nats
+
+```
+Message throughput: 16148.69 messages/sec
+Data throughput: 15.770207 Mb/sec
+Min latency: 0 ms.
+P90 latency: 8 ms.
+P99 latency: 15 ms.
+P99.9 latency: 28 ms.
+Max latency: 58 ms.
+Total elapsed time: 1m0.08941725s
+Commandline arguments: -driver nats -brokers 127.0.0.1:4222,127.0.0.1:4223,127.0.0.1:4224 -topics=s0,s1,s2,s3,s4,s5,s6,s7,s8,s9 -msg_size=1024 -minutes=1 -producers_per_topic=10
+```
