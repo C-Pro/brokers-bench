@@ -349,3 +349,17 @@ Max latency: 742 ms.
 Total elapsed time: 5m0.349696209s
 Commandline arguments: -driver redpanda -brokers=192.168.3.148:9093,192.168.3.148:9094,192.168.3.148:9095 -topics=topic_1,topic_2,topic_3,topic_4,topic_5,topic_6,topic_7,topic_8,topic_9,topic_10 -msg_size=1024 -minutes=5 -producers_per_topic=10
 ```
+
+Just for fun there's a NATS benchmark with the same scenario: 1 stream with 3 replicas on 3 brokers, 10 subjects, 100 producers, 10 consumers.
+
+```
+Message throughput: 7971.84 messages/sec
+Data throughput: 7.784997 Mb/sec
+Min latency: 0 ms.
+P90 latency: 27 ms.
+P99 latency: 61 ms.
+P99.9 latency: 89 ms.
+Max latency: 124 ms.
+Total elapsed time: 1m0.065176292s
+Commandline arguments: -driver nats -brokers 127.0.0.1:4222,127.0.0.1:4223,127.0.0.1:4224 -topics=s0,s1,s2,s3,s4,s5,s6,s7,s8,s9 -msg_size=1024 -minutes=1 -producers_per_topic=10
+```

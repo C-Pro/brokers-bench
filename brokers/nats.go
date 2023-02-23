@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"sync"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -37,19 +39,25 @@ func (n *Nats) Produce(ctx context.Context, topic, key, value string) error {
 	return err
 }
 
-func (n *Nats) Consume(ctx context.Context, topic string) (chan Message, error) {
+func (n *Nats) Consume(ctx context.Context, subject string) (chan Message, error) {
 	ch := make(chan Message)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
 		<-ctx.Done()
+		wg.Wait()
 		close(ch)
 	}()
 
-	sub, err := n.js.SubscribeSync(topic, nats.Durable("test"))
+	sub, err := n.js.SubscribeSync(subject, nats.AckAll(), nats.Durable(subject))
 	if err != nil {
-		return nil, fmt.Errorf("failed to subscribe: %w", err)
+		return nil, fmt.Errorf("failed to subscribe (%s): %w", subject, err)
 	}
 
+	log.Printf("NATS subscribed to %s", subject)
+
 	go func() {
+		defer wg.Done()
 		for {
 			m, err := sub.NextMsg(time.Minute)
 			if err != nil {
@@ -67,9 +75,9 @@ func (n *Nats) Consume(ctx context.Context, topic string) (chan Message, error) 
 			}:
 			}
 
-			// if err := m.AckSync(); err != nil {
-			// 	panic(fmt.Sprintf("failed to ack: %v", err))
-			// }
+			if err := m.Ack(); err != nil {
+				panic(fmt.Sprintf("failed to ack: %v", err))
+			}
 		}
 	}()
 

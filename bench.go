@@ -99,6 +99,12 @@ func runTopic(ctx context.Context, msgSize int, N, M, rate, producers int, broke
 					b.WriteByte(42)
 				}
 
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+
 				if err := p.Produce(ctx, topic, "", b.String()); err != nil {
 					log.Printf("failed to produce: %v", err)
 					break
@@ -141,7 +147,7 @@ func NewClient(brokerType, brokerURLs, topic string) Client {
 		}
 		return k
 	case "nats":
-		n, err := brokers.NewNats(brokerURLs, topic)
+		n, err := brokers.NewNats(brokerURLs, "s") // hardcoded stream name
 		if err != nil {
 			log.Fatalf("failed to create Nats JetStream client: %v", err)
 		}
