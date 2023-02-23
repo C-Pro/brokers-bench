@@ -269,7 +269,7 @@ Total elapsed time: 5m0.097158125s
 Commandline arguments: -driver redpanda -brokers=192.168.3.148:9093,192.168.3.148:9094,192.168.3.148:9095 -topics=topic_1 -msg_size=1024 -minutes=5 -producers_per_topic=10
 ```
 
-Four topics (40 producers and 4 consumers). Redpanda.
+Four topics (40 producers and 4 consumers). Redpanda with franz-go driver.
 
 ```
 Message throughput: 9933.75 messages/sec
@@ -282,7 +282,20 @@ Max latency: 46 ms.
 Total elapsed time: 1m0.073410667s
 ```
 
-Four topics (40 producers and 4 consumers). Kafka.
+Four topics (40 producers and 4 consumers). Redpanda, with kafka-go driver.
+```
+Message throughput: 7687.55 messages/sec
+Data throughput: 7.507369 Mb/sec
+Min latency: 0 ms.
+P90 latency: 18 ms.
+P99 latency: 26 ms.
+P99.9 latency: 34 ms.
+Max latency: 63 ms.
+Total elapsed time: 5m0.188373708s
+Commandline arguments: -driver kafka -brokers=127.0.0.1:63574,127.0.0.1:63573,127.0.0.1:63570 -topics=topic_1,topic_2,topic_3,topic_4 -msg_size=1024 -minutes=5 -producers_per_topic=10
+```
+
+Four topics (40 producers and 4 consumers). Kafka with franz-go driver.
 
 ```
 Message throughput: 7147.80 messages/sec
@@ -294,6 +307,20 @@ P99.9 latency: 160 ms.
 Max latency: 241 ms.
 Total elapsed time: 5m0.25113875s
 Commandline arguments: -driver redpanda -brokers=192.168.3.148:9093,192.168.3.148:9094,192.168.3.148:9095 -topics=topic_1,topic_2,topic_3,topic_4 -msg_size=1024 -minutes=5 -producers_per_topic=10
+```
+
+Four topics (40 producers and 4 consumers). Kafka with kafka-go driver.
+
+```
+Message throughput: 6496.36 messages/sec
+Data throughput: 6.344100 Mb/sec
+Min latency: 1 ms.
+P90 latency: 18 ms.
+P99 latency: 28 ms.
+P99.9 latency: 42 ms.
+Max latency: 127 ms.
+Total elapsed time: 5m0.183461583s
+Commandline arguments: -driver kafka -brokers=192.168.3.148:9093,192.168.3.148:9094,192.168.3.148:9094 -topics=topic_1,topic_2,topic_3,topic_4 -msg_size=1024 -minutes=5 -producers_per_topic=10
 ```
 
 Ten topics (100 producers and 10 consumers). Redpanda.

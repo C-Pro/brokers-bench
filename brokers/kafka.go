@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log"
 	"strings"
-	"time"
 
 	kafka "github.com/segmentio/kafka-go"
 )
@@ -19,20 +18,17 @@ func NewKafka(url, topic string) *Kafka {
 	urls := strings.Split(url, ",")
 	k := Kafka{
 		writer: &kafka.Writer{
-			Addr:                   kafka.TCP(urls...),
-			AllowAutoTopicCreation: true,
-			BatchTimeout:           time.Millisecond,
-			RequiredAcks:           kafka.RequireNone,
-			Balancer:               &kafka.RoundRobin{},
+			Addr:         kafka.TCP(urls...),
+			BatchSize:    1,
+			RequiredAcks: kafka.RequireOne,
+			Balancer:     &kafka.RoundRobin{},
 		},
 	}
 
 	if topic != "" {
 		k.reader = kafka.NewReader(kafka.ReaderConfig{
-			Brokers:     urls,
-			Topic:       topic,
-			StartOffset: kafka.LastOffset,
-			MaxWait:     time.Millisecond,
+			Brokers: urls,
+			Topic:   topic,
 		})
 	}
 
@@ -41,6 +37,7 @@ func NewKafka(url, topic string) *Kafka {
 
 func (k *Kafka) Produce(ctx context.Context, topic, key, value string) error {
 	msg := kafka.Message{
+		Topic: topic,
 		Key:   []byte(key),
 		Value: []byte(value),
 	}
