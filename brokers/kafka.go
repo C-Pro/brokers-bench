@@ -22,6 +22,7 @@ func NewKafka(url, topic string) *Kafka {
 			BatchSize:    1,
 			RequiredAcks: kafka.RequireOne,
 			Balancer:     &kafka.RoundRobin{},
+			Compression:  kafka.Snappy,
 		},
 	}
 
@@ -30,6 +31,7 @@ func NewKafka(url, topic string) *Kafka {
 			Brokers: urls,
 			Topic:   topic,
 		})
+		k.reader.SetOffset(kafka.LastOffset)
 	}
 
 	return &k

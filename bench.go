@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"log"
 	"os"
@@ -13,6 +14,8 @@ import (
 	"time"
 
 	"streambench/brokers"
+
+	"gonum.org/v1/gonum/stat"
 )
 
 var (
@@ -31,7 +34,7 @@ type Consumer interface {
 func runTopic(ctx context.Context, msgSize int, N, M, rate, producers int, brokerType, brokerURLs, topic string) []time.Duration {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	latencies := make([]time.Duration, N)
+	latencies := make([]time.Duration, 0, N)
 	start := time.Now().UnixNano()
 
 	c := NewClient(brokerType, brokerURLs, topic)
@@ -52,24 +55,14 @@ func runTopic(ctx context.Context, msgSize int, N, M, rate, producers int, broke
 			if err != nil {
 				panic(err)
 			}
-			// skip stale messages
-			if ns < start {
+			// skip stale or future messages
+			if ns < start || ns >= time.Now().UnixNano() {
 				continue
 			}
 
 			atomic.AddInt64(&rxN, 1)
 			latencies = append(latencies, time.Since(time.Unix(0, ns)))
 			i++
-
-			// Stop if number of messages is reached.
-			if N > 0 && i == N {
-				return
-			}
-
-			// Stop if number of minutes is reached.
-			if M > 0 && (time.Now().UnixNano()-start)/int64(time.Minute) == int64(M) {
-				return
-			}
 		}
 	}()
 
@@ -115,11 +108,13 @@ func runTopic(ctx context.Context, msgSize int, N, M, rate, producers int, broke
 				i++
 
 				// Stop if number of messages is reached.
-				if N > 0 && i == N {
+				if N > 0 && i >= N {
+					log.Printf("Producer %s stopping due to message count limit", topic)
 					break
 				}
 				// Stop if number of minutes is reached.
-				if M > 0 && (time.Now().UnixNano()-start)/int64(time.Minute) == int64(M) {
+				if M > 0 && (time.Now().UnixNano()-start)/int64(time.Minute) >= int64(M) {
+					log.Printf("Producer %s stopping due to time limit", topic)
 					break
 				}
 			}
@@ -127,7 +122,8 @@ func runTopic(ctx context.Context, msgSize int, N, M, rate, producers int, broke
 	}
 
 	pwg.Wait() // Wait for producers to finish.
-	cwg.Wait() // Wait for consumer to finish.
+	cancel()
+	// cwg.Wait() // Wait for consumer to finish.
 
 	return latencies
 }
@@ -191,9 +187,11 @@ func RunBench(ctx context.Context, msgSize int, N, M, rate, producers int, broke
 	go func() {
 		defer wgl.Done()
 		for ls := range ch {
-			// Trim first 10% of latencies slice
-			// to account for broker "warm up" time.
-			latencies = append(latencies, ls[len(ls)/10:]...)
+			// Trim first 10%  and last 10% of latencies slice
+			// to account for broker "warm up" time and shutdown part (some producers can
+			// finish earlier than others that will make tail of the latencies more sparse).
+			cut := len(ls) / 10
+			latencies = append(latencies, ls[cut:len(ls)-cut]...)
 		}
 	}()
 
@@ -238,6 +236,11 @@ func RunBench(ctx context.Context, msgSize int, N, M, rate, producers int, broke
 	fmt.Printf("Message throughput: %.2f messages/sec\n", float64(N)/elapsed.Seconds())
 	fmt.Printf("Data throughput: %f Mb/sec\n", (float64(N*msgSize)/elapsed.Seconds())/1024/1024)
 
+	flats := make([]float64, len(latencies))
+	for i, l := range latencies {
+		flats[i] = float64(l) / float64(time.Millisecond)
+	}
+
 	sort.Slice(latencies, func(i, j int) bool {
 		return latencies[i] < latencies[j]
 	})
@@ -248,8 +251,29 @@ func RunBench(ctx context.Context, msgSize int, N, M, rate, producers int, broke
 	fmt.Printf("P99 latency: %v\n", ms(latencies[N-N/100]))
 	fmt.Printf("P99.9 latency: %v\n", ms(latencies[N-N/1000]))
 	fmt.Printf("Max latency: %v\n", ms(latencies[N-1]))
+
+	stddev := stat.StdDev(flats, nil)
+	fmt.Printf("Latency StdDev: %.6f\n", stddev)
+	fmt.Printf("Latency StdErr: %.6f\n", stat.StdErr(stddev, float64(N)))
 	fmt.Printf("Total elapsed time: %v\n", time.Since(start))
 	fmt.Printf("Commandline arguments: %s\n", strings.Join(os.Args[1:], " "))
+
+	f, err := os.OpenFile("latencies.csv", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	defer f.Close()
+	if err != nil {
+		log.Fatalf("failed to open file: %v", err)
+	}
+	w := csv.NewWriter(f)
+	defer w.Flush()
+	for i, f := range flats {
+		// Sample 10% of latencies (to moving gigabytes of floats over network).
+		if i%10 > 0 {
+			continue
+		}
+		if err := w.Write([]string{strconv.FormatFloat(f, 'g', 5, 64)}); err != nil {
+			log.Fatalf("failed to write csv: %v", err)
+		}
+	}
 }
 
 func ms(d time.Duration) string {

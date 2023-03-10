@@ -1,0 +1,4 @@
+IPS=("10.70.0.72" "10.70.0.25" "10.70.1.229"  "10.70.1.110" "10.70.1.206")
+TOPICS=("t0,t1,t2,t3,t4" "t5,t6,t7,t8,t9" "t10,t11,t12,t13,t14" "t15,t16,t17,t18,t19" "t20,t21,t22,t23,t24")
+BROKERS="10.70.0.32:9092,10.70.1.72:9092,10.70.0.170:9092"
+PARAMS="-brokers=$BROKERS -minutes=5 -producer_rate=50000 -msg_size=1024 -producers_per_topic=1"

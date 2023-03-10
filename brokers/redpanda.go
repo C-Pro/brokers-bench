@@ -83,6 +83,11 @@ func (rp *RedPanda) Consume(ctx context.Context, topic string) (chan Message, er
 				}:
 				}
 			})
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 		}
 	}()
 

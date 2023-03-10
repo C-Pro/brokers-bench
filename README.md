@@ -437,3 +437,97 @@ Max latency: 58 ms.
 Total elapsed time: 1m0.08941725s
 Commandline arguments: -driver nats -brokers 127.0.0.1:4222,127.0.0.1:4223,127.0.0.1:4224 -topics=s0,s1,s2,s3,s4,s5,s6,s7,s8,s9 -msg_size=1024 -minutes=1 -producers_per_topic=10
 ```
+
+# AWS Instances
+
+This series of benchmarks was run on separate AWS Instances with real network latency between broker nodes and between node on which producers and consumers ran and brokers.
+
+All nodes are [m4.4xlarge](https://instances.vantage.sh/aws/ec2/m4.4xlarge?region=ap-southeast-1&os=linux&cost_duration=hourly&reserved_term=Standard.noUpfront) in one zone with high performance network mode. 4 machines in total (3 brokers and one for benchmark process itself).
+
+The common settings for all tests below:
+
+- LeaderAck mode (producer is waiting for leader broker to acknowledge it has received the message before proceeding).
+- Message size is 1Kib (1024 bytes).
+- Benchmark time is 5 minutes.
+- If not explicitly stated, franz-go driver is used.
+
+## Single topic
+
+In this scenario each broker had one topic to which one producer was writing messages and one consumer was consuming. Latency is measured between message generation time in producer (immediately before producing) and time when message was consumed by a consumer.
+
+|  | Kafka | Redpanda |
+| --- | --- | --- |
+| Message throughput (msg per sec) | 1019.31 | 1371 |
+| Data throughput (Mb per sec) | 0.995423 | 1.339261 |
+| Min latency (ms) | 0 | 0 |
+| P90 latency (ms) | 1 | 1 |
+| P99 latency (ms) | 1 | 1 |
+| P99.9 latency (ms) | 1 | 1 |
+| Max latency (ms) | 8 | 20 |
+
+## Ten topics
+
+I also ran a benchmark with 10 topics in parallel for Kafka and Redpanda. Each topic had one partition and replication factor 3. Producers were set up to wait acknowledge from leader broker before publishing next message. There were 10 producers and 10 consumers. Each producer sent 100000 messages, so total number of sent/received messages in the test is one million.
+
+|  | Kafka | Redpanda |
+| --- | --- | --- |
+| Message throughput (msg per sec) | 6062.34 | 14066.66 |
+| Data throughput (Mb per sec) | 5.920251 | 13.736973 |
+| Min latency (ms) | 0 | 0 |
+| P90 latency (ms) | 1 | 1 |
+| P99 latency (ms) | 2 | 1 |
+| P99.9 latency (ms) | 7 | 2 |
+| Max latency (ms) | 10 | 22 |
+
+## **Multiple producers**
+
+Benchmarking several producers writing into one topic. For all benchmarks first 10% of latency readings are discarded before computing percentiles.
+
+### Ten producers one consumer
+
+|  | Kafka | Redpanda |
+| --- | --- | --- |
+| Message throughput (msg per sec) | 7434.47 | 7255.56 |
+| Data throughput (Mb per sec) | 7.260222 | 7.085504 |
+| Min latency (ms) | 0 | 0 |
+| P90 latency (ms) | 1 | 1 |
+| P99 latency (ms) | 1 | 1 |
+| P99.9 latency (ms) | 4 | 2 |
+| Max latency (ms) | 13 | 21 |
+
+### 40 producers 4 consumers (4 topics) with franz-go driver
+
+|  | Kafka | Redpanda |
+| --- | --- | --- |
+| Message throughput (msg per sec) | 29469.39 | 29911.90 |
+| Data throughput (Mb per sec) | 28.778698 | 29.210842 |
+| Min latency (ms) | 0 | 0 |
+| P90 latency (ms) | 1 | 1 |
+| P99 latency (ms) | 3 | 2 |
+| P99.9 latency (ms) | 5 | 3 |
+| Max latency (ms) | 52 | 35 |
+
+### 40 producers 4 consumers (4 topics) with kafka-go driver
+
+|  | Kafka | Redpanda |
+| --- | --- | --- |
+| Message throughput (msg per sec) | 36321.25 | 28768.14 |
+| Data throughput (Mb per sec) | 35.469967 | 28.093889 |
+| Min latency (ms) | 0 | 0 |
+| P90 latency (ms) | 2 | 1 |
+| P99 latency (ms) | 72 | 2 |
+| P99.9 latency (ms) | 102 | 6 |
+| Max latency (ms) | 112 | 32 |
+
+### 100 producers and 10 consumers
+
+|  | Kafka | Redpanda |
+| --- | --- | --- |
+| Message throughput (msg per sec) | 67209.63 | 65459.45 |
+| Data throughput (Mb per sec) | 65.634403 | 63.925242 |
+| Min latency (ms) | 0 | 0 |
+| P90 latency (ms) | 2 | 1 |
+| P99 latency (ms) | 44 | 3 |
+| P99.9 latency (ms) | 100 | 6 |
+| Max latency (ms) | 121 | 28 |
+
