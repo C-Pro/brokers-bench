@@ -531,3 +531,7 @@ Benchmarking several producers writing into one topic. For all benchmarks first 
 | P99.9 latency (ms) | 100 | 6 |
 | Max latency (ms) | 121 | 28 |
 
+# More thorough AWS testing
+
+We also tested several AWS instance types with producers and consumers running on multiple machines to emulate more realistic scenario.
+Results are plotted in the [jupiter notebook](brokers_latency_graphs.ipynb)
