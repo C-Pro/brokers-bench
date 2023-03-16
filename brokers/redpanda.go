@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
 )
@@ -22,6 +23,7 @@ func NewRedPanda(url, topic string) (*RedPanda, error) {
 		kgo.DisableIdempotentWrite(),
 		kgo.ProducerBatchCompression(kgo.SnappyCompression()),
 		kgo.RequiredAcks(kgo.LeaderAck()),
+		kgo.ProducerLinger(time.Millisecond),
 		kgo.WithLogger(kgo.BasicLogger(os.Stderr, kgo.LogLevelWarn, nil)),
 		kgo.ConsumeResetOffset(kgo.NewOffset().AtEnd()),
 	}

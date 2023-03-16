@@ -61,7 +61,8 @@ func runTopic(ctx context.Context, msgSize int, N, M, rate, producers int, broke
 			}
 
 			atomic.AddInt64(&rxN, 1)
-			latencies = append(latencies, time.Since(time.Unix(0, ns)))
+			latency := time.Since(time.Unix(0, ns))
+			latencies = append(latencies, latency)
 			i++
 		}
 	}()
@@ -86,9 +87,10 @@ func runTopic(ctx context.Context, msgSize int, N, M, rate, producers int, broke
 
 				var b strings.Builder
 				b.Grow(msgSize)
-				ts := strconv.FormatInt(time.Now().UnixNano(), 10)
-				b.WriteString(ts)
-				for n := 0; n < msgSize-len(ts); n++ {
+				ts := time.Now()
+				tsStr := strconv.FormatInt(ts.UnixNano(), 10)
+				b.WriteString(tsStr)
+				for n := 0; n < msgSize-len(tsStr); n++ {
 					b.WriteByte(42)
 				}
 
@@ -104,7 +106,7 @@ func runTopic(ctx context.Context, msgSize int, N, M, rate, producers int, broke
 				}
 
 				atomic.AddInt64(&txN, 1)
-				lastProduced = time.Now()
+				lastProduced = ts
 				i++
 
 				// Stop if number of messages is reached.

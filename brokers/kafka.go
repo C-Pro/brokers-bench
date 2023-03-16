@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"strings"
+	"time"
 
 	kafka "github.com/segmentio/kafka-go"
 )
@@ -19,7 +20,8 @@ func NewKafka(url, topic string) *Kafka {
 	k := Kafka{
 		writer: &kafka.Writer{
 			Addr:         kafka.TCP(urls...),
-			BatchSize:    1,
+			BatchSize:    100,
+			BatchTimeout: time.Millisecond,
 			RequiredAcks: kafka.RequireOne,
 			Balancer:     &kafka.RoundRobin{},
 			Compression:  kafka.Snappy,

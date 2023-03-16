@@ -53,8 +53,8 @@ do
     ssh -i pk.pk ubuntu@${IPS[$i]} ./run.sh \"$PARAMS -topics=${TOPICS[$i]}\"
 done
 
-# 6 min to run benchmarks.
-sleep 360
+# 5 min to run all benchmarks.
+sleep 315
 
 mkdir $TEST_NAME
 pushd $TEST_NAME
