@@ -10,14 +10,15 @@ import (
 
 func main() {
 	var (
-		url         string
-		topics      string
-		msgSize     int
-		numMessages int
-		minutes     int
-		broker      string
-		rate        int
-		producers   int
+		url           string
+		topics        string
+		msgSize       int
+		numMessages   int
+		minutes       int
+		broker        string
+		rate          int
+		producers     int
+		transactional bool
 	)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -31,6 +32,7 @@ func main() {
 	flag.StringVar(&broker, "driver", "redpanda", "driver to use (kafka, redpanda, nats, pulsar)")
 	flag.IntVar(&rate, "producer_rate", 1000, "number of messages per second to produce per producer (by default there's one producer per topic)")
 	flag.IntVar(&producers, "producers_per_topic", 1, "number producers per topic")
+	flag.BoolVar(&transactional, "transactional", false, "set the flag for transactional publishing")
 	flag.Parse()
 
 	if url == "" {
@@ -41,5 +43,16 @@ func main() {
 		log.Fatal("Provide either -minutes or -num_messages, but not both.")
 	}
 
-	RunBench(ctx, msgSize, numMessages, minutes, rate, producers, broker, url, topics)
+	RunBench(
+		ctx,
+		msgSize,
+		numMessages,
+		minutes,
+		rate,
+		producers,
+		broker,
+		url,
+		topics,
+		transactional,
+	)
 }

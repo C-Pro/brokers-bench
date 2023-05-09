@@ -9,20 +9,20 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 type RedPanda struct {
 	cl *kgo.Client
+	tx bool
 }
 
-func NewRedPanda(url, topic string) (*RedPanda, error) {
+func NewRedPanda(url, topic string, transactional bool) (*RedPanda, error) {
 	rp := &RedPanda{}
 	opts := []kgo.Opt{
 		kgo.SeedBrokers(strings.Split(url, ",")...),
-		kgo.DisableIdempotentWrite(),
 		kgo.ProducerBatchCompression(kgo.SnappyCompression()),
-		kgo.RequiredAcks(kgo.LeaderAck()),
 		kgo.ProducerLinger(time.Millisecond),
 		kgo.WithLogger(kgo.BasicLogger(os.Stderr, kgo.LogLevelWarn, nil)),
 		kgo.ConsumeResetOffset(kgo.NewOffset().AtEnd()),
@@ -32,12 +32,20 @@ func NewRedPanda(url, topic string) (*RedPanda, error) {
 		opts = append(opts, kgo.ConsumeTopics(strings.Split(topic, ",")...))
 	}
 
+	if transactional {
+		opts = append(opts,
+			kgo.TransactionalID(uuid.NewString()),
+			kgo.FetchIsolationLevel(kgo.ReadCommitted()),
+		)
+	}
+
 	cl, err := kgo.NewClient(opts...)
 	if err != nil {
 		return nil, err
 	}
 
 	rp.cl = cl
+	rp.tx = transactional
 	return rp, nil
 }
 
@@ -48,7 +56,23 @@ func (rp *RedPanda) Produce(ctx context.Context, topic, key, value string) error
 		Value: []byte(value),
 	}
 
+	if rp.tx {
+		if err := rp.cl.BeginTransaction(); err != nil {
+			return err
+		}
+	}
+
 	res := rp.cl.ProduceSync(ctx, &msg)
+
+	if rp.tx {
+		if res.FirstErr() != nil {
+			if err := rp.cl.EndTransaction(ctx, kgo.TryAbort); err != nil {
+				return fmt.Errorf("failed to abort tx after %q: %v", res.FirstErr().Error(), err)
+			}
+		}
+
+		return rp.cl.EndTransaction(ctx, kgo.TryCommit)
+	}
 
 	return res.FirstErr()
 }

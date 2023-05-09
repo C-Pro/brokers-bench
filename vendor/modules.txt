@@ -67,6 +67,9 @@ github.com/golang/protobuf/ptypes/timestamp
 # github.com/golang/snappy v0.0.1
 ## explicit
 github.com/golang/snappy
+# github.com/google/uuid v1.3.0
+## explicit
+github.com/google/uuid
 # github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c
 ## explicit
 github.com/gsterjov/go-libsecret

@@ -31,13 +31,18 @@ type Consumer interface {
 	Consume(ctx context.Context, topic string) (chan brokers.Message, error)
 }
 
-func runTopic(ctx context.Context, msgSize int, N, M, rate, producers int, brokerType, brokerURLs, topic string) []time.Duration {
+func runTopic(
+	ctx context.Context,
+	msgSize, N, M, rate, producers int,
+	brokerType, brokerURLs, topic string,
+	transactional bool,
+) []time.Duration {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	latencies := make([]time.Duration, 0, N)
 	start := time.Now().UnixNano()
 
-	c := NewClient(brokerType, brokerURLs, topic)
+	c := NewClient(brokerType, brokerURLs, topic, transactional)
 	ch, err := c.Consume(ctx, topic)
 	if err != nil {
 		panic(err)
@@ -69,11 +74,11 @@ func runTopic(ctx context.Context, msgSize int, N, M, rate, producers int, broke
 
 	// Produce.
 	pwg := sync.WaitGroup{}
-	for pidx := 0; pidx <= producers; pidx++ {
+	for pidx := 0; pidx < producers; pidx++ {
 		pwg.Add(1)
 		go func() {
 			defer pwg.Done()
-			p := NewClient(brokerType, brokerURLs, "")
+			p := NewClient(brokerType, brokerURLs, "", transactional)
 			i := 0
 			lastProduced := time.Time{}
 			for {
@@ -136,7 +141,7 @@ type Client interface {
 }
 
 // NewClient returns Producer it topic is empty, and Consumer otherwize.
-func NewClient(brokerType, brokerURLs, topic string) Client {
+func NewClient(brokerType, brokerURLs, topic string, transactional bool) Client {
 	switch brokerType {
 	case "pulsar":
 		k, err := brokers.NewPulsar(brokerURLs, topic)
@@ -154,7 +159,7 @@ func NewClient(brokerType, brokerURLs, topic string) Client {
 		k := brokers.NewKafka(brokerURLs, topic)
 		return k
 	case "redpanda":
-		rp, err := brokers.NewRedPanda(brokerURLs, topic)
+		rp, err := brokers.NewRedPanda(brokerURLs, topic, transactional)
 		if err != nil {
 			log.Fatalf("failed to create RedPanda client: %v", err)
 		}
@@ -165,7 +170,12 @@ func NewClient(brokerType, brokerURLs, topic string) Client {
 	return nil
 }
 
-func RunBench(ctx context.Context, msgSize int, N, M, rate, producers int, brokerType, brokerURLs, topics string) {
+func RunBench(
+	ctx context.Context,
+	msgSize, N, M, rate, producers int,
+	brokerType, brokerURLs, topics string,
+	transactional bool,
+) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -179,7 +189,7 @@ func RunBench(ctx context.Context, msgSize int, N, M, rate, producers int, broke
 		wg.Add(1)
 		go func(topic string) {
 			defer wg.Done()
-			ch <- runTopic(ctx, msgSize, N, M, rate, producers, brokerType, brokerURLs, topic)
+			ch <- runTopic(ctx, msgSize, N, M, rate, producers, brokerType, brokerURLs, topic, transactional)
 		}(topic)
 	}
 
