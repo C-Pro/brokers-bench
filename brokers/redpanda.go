@@ -20,12 +20,13 @@ func NewRedPanda(url, topic string) (*RedPanda, error) {
 	rp := &RedPanda{}
 	opts := []kgo.Opt{
 		kgo.SeedBrokers(strings.Split(url, ",")...),
-		kgo.DisableIdempotentWrite(),
 		kgo.ProducerBatchCompression(kgo.SnappyCompression()),
-		kgo.RequiredAcks(kgo.LeaderAck()),
+		kgo.RequiredAcks(kgo.AllISRAcks()),
 		kgo.ProducerLinger(time.Millisecond),
 		kgo.WithLogger(kgo.BasicLogger(os.Stderr, kgo.LogLevelWarn, nil)),
 		kgo.ConsumeResetOffset(kgo.NewOffset().AtEnd()),
+		kgo.ConsumerGroup("bench-franz"),
+		kgo.ConsumeTopics(topic),
 	}
 
 	if topic != "" {

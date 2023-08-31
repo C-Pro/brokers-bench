@@ -249,6 +249,7 @@ func RunBench(ctx context.Context, msgSize int, N, M, rate, producers int, broke
 
 	N = len(latencies) // This one is smaller than rxN because we trim first 10% of warmup time.
 	fmt.Printf("Min latency: %v\n", ms(latencies[0]))
+	fmt.Printf("P50 latency: %v\n", ms(latencies[N/2]))
 	fmt.Printf("P90 latency: %v\n", ms(latencies[N-N/10]))
 	fmt.Printf("P99 latency: %v\n", ms(latencies[N-N/100]))
 	fmt.Printf("P99.9 latency: %v\n", ms(latencies[N-N/1000]))

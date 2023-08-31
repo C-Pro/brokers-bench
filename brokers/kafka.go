@@ -22,7 +22,7 @@ func NewKafka(url, topic string) *Kafka {
 			Addr:         kafka.TCP(urls...),
 			BatchSize:    100,
 			BatchTimeout: time.Millisecond,
-			RequiredAcks: kafka.RequireOne,
+			RequiredAcks: kafka.RequireAll,
 			Balancer:     &kafka.RoundRobin{},
 			Compression:  kafka.Snappy,
 		},
@@ -32,8 +32,9 @@ func NewKafka(url, topic string) *Kafka {
 		k.reader = kafka.NewReader(kafka.ReaderConfig{
 			Brokers: urls,
 			Topic:   topic,
+			GroupID: "bench-segmentio",
 		})
-		k.reader.SetOffset(kafka.LastOffset)
+		// k.reader.SetOffset(kafka.LastOffset)
 	}
 
 	return &k
